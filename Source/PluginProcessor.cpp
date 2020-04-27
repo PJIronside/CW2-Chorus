@@ -28,14 +28,18 @@ ChorusAudioProcessor::ChorusAudioProcessor()
     addParameter(mixA);
     mixB = new AudioParameterFloat("mixB", "Mix B", 0.0f, 1.0f, 0.0f);
     addParameter(mixB);
-    intensityA = new AudioParameterFloat("intensityA", "Intensity A", 0.0000f, 0.0200f, 0.0100f);
-    addParameter(intensityA);
-    intensityB = new AudioParameterFloat("intensityB", "Intensity B", 0.0000f, 0.0200f, 0.0100f);
-    addParameter(intensityB);
-    speedA = new AudioParameterFloat("speedA", "Speed A", 0.100f, 3.000f, 1.000f);
+    widthA = new AudioParameterFloat("widthA", "Width A", 0.1f, 10.0f, 1.0f);
+    addParameter(widthA);
+    widthB = new AudioParameterFloat("widthB", "Width B", 0.1f, 10.0f, 1.0f);
+    addParameter(widthB);
+    speedA = new AudioParameterFloat("speedA", "Speed A", 0.1f, 3.0f, 1.0f);
     addParameter(speedA);
-    speedB = new AudioParameterFloat("speedB", "Speed B", 0.100f, 3.000f, 1.000f);
+    speedB = new AudioParameterFloat("speedB", "Speed B", 0.1f, 3.0f, 1.0f);
     addParameter(speedB);
+    timeA = new AudioParameterFloat("timeA", "Time A (ms)", 20.0f, 50.0f, 30.0f);
+    addParameter(timeA);
+    timeB = new AudioParameterFloat("timeB", "Time B (ms)", 20.0f, 50.0f, 30.0f);
+    addParameter(timeB);
 }
 
 ChorusAudioProcessor::~ChorusAudioProcessor()
@@ -104,18 +108,10 @@ void ChorusAudioProcessor::changeProgramName (int index, const String& newName)
 {
 }
 
+
 //==============================================================================
 void ChorusAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-
-    // Maximum delay of 1 seconds
-    delayBufferLength = (int)(sampleRate);
-    // Set the buffer to 1 channel of the size of delayBufferLength using setSize
-    delayBufferA.setSize(1, delayBufferLength);
-    delayBufferB.setSize(1, delayBufferLength);
-    // Set all the samples in the buffer to zero
-    delayBufferA.clear();
-    delayBufferB.clear();
    
 }
 
@@ -163,58 +159,79 @@ void ChorusAudioProcessor::processBlock (AudioBuffer<float>& buffer, MidiBuffer&
     // this code if your algorithm always overwrites all the output channels.
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
+    {
 
-    // IMPORTANT: calculate the position of the read index relative to the write index
-// i.e. the delay time in samples
-
-    readIndexA = (int)(writeIndexA - (intensityA->get() * getSampleRate()) * +delayBufferLength) % delayBufferLength;
-    readIndexB = (int)(writeIndexB - (intensityB->get() * getSampleRate()) * +delayBufferLength) % delayBufferLength;
-       
-
-        // channelData is an array of length numSamples which contain
-        // the audio for one channel
-        float *channelData = buffer.getWritePointer(0);
-        // delayData is the circular buffer for the delay
-        float *delayAData = delayBufferA.getWritePointer(0);
-        float *delayBData = delayBufferB.getWritePointer(0);
-
-        float intensityAValue = intensityA->get();
-        float intensityBValue = intensityB->get();
-        float speedAValue = speedA->get();
-        float speedBValue = speedB->get();
-        float mixAValue = mixA->get();
-        float mixBValue = mixB->get();
-
-        for (int i = 0; i < buffer.getNumSamples(); ++i)
+        for (int channel = 0; channel < totalNumInputChannels; ++channel)
         {
+            // Maximum delay of 1 seconds
+            int delayBufferALength = getSampleRate();
+            int delayBufferBLength = getSampleRate();
+            // Set the buffer to 1 channel of the size of delayBufferLength using setSize
+            delayBufferA.setSize(1, delayBufferALength);
+            delayBufferB.setSize(1, delayBufferBLength);
+            // Set all the samples in the buffer to zero
+            delayBufferA.clear();
+            delayBufferB.clear();
+            // channelData is an array of length numSamples which contain
+            // the audio for one channel
+            float* channelData = buffer.getWritePointer(0);
+            // delayData is the circular buffer for the delay
+            float* delayAData = delayBufferA.getWritePointer(0);
+            float* delayBData = delayBufferB.getWritePointer(0);
+
+            float intensityAValue = widthA->get();
+            float intensityBValue = widthB->get();
+            float speedAValue = speedA->get();
+            float speedBValue = speedB->get();
+            float mixAValue = mixA->get();
+            float mixBValue = mixB->get();
+
+
+            // IMPORTANT: calculate the position of the read index relative to the write index
+            // i.e. the delay time in samples
+            readIndexA = (int)(writeIndexA - (timeA->get() * 0.001 * getSampleRate()) + delayBufferALength) % delayBufferALength;
+            readIndexB = (int)(writeIndexB - (timeB->get() * 0.001 * getSampleRate()) + delayBufferBLength) % delayBufferBLength;
+
+
+
             // Retrieve the input sample and store locally
-            auto in = channelData[i];
-            auto modulationA = 0.02 + (intensityAValue * 0.5) + sin(2 * 3.141 * speedAValue * channelData[i]);
-            auto modulationB = 0.02 + (intensityBValue * 0.5) + sin(2 * 3.141 * speedBValue * channelData[i]);
-            
+            auto in = channelData[channel];
+
+            //auto modulationA = 0.02 + (intensityAValue * 0.5) + sin(2 * 3.141 * speedAValue * channelData[i]);
+            //auto modulationB = 0.02 + (intensityBValue * 0.5) + sin(2 * 3.141 * speedBValue * channelData[i]);
+
             //Compute the output sample
-            auto outLeft = in + (mixAValue * (modulationA - delayAData[readIndexA]));
-            auto outRight = in + (mixBValue * (modulationB - delayBData[readIndexB]));
+            auto outLeft = (in + (delayAData[readIndexA] * mixAValue));
+            auto outRight = (in + (delayBData[readIndexB] * mixBValue));
 
             // Write the current input into the delay buffer along with the delayed sample
-            delayAData[writeIndexA] = in + delayAData[readIndexA];
-            delayBData[writeIndexB] = in + delayBData[readIndexB];
+            //delayAData[writeIndexA] = in + delayAData[readIndexA];
+            //delayBData[writeIndexB] = in + delayBData[readIndexB];
 
             // Increment read index then check to see if it's greater than the buffer length
             // If so wrap back around to zero
-            if (++readIndexA >= delayBufferLength)
+            if (++readIndexA >= delayBufferALength)
                 readIndexA = 0;
-            if (++readIndexB >= delayBufferLength)
+            if (++readIndexB >= delayBufferBLength)
                 readIndexB = 0;
             // Same with write index
-            if (++writeIndexA >= delayBufferLength)
+            if (++writeIndexA >= delayBufferALength)
                 writeIndexA = 0;
-            if (++writeIndexB >= delayBufferLength)
+            if (++writeIndexB >= delayBufferBLength)
                 writeIndexB = 0;
-            
-            channelData[i] = in + outLeft + outRight;
+
+            if (channel == 0)
+            {
+                channelData[channel] = outLeft;
+            }
+            else
+            {
+                channelData[channel] = outRight;
+            }
+
+
         }
-    
+    }
 }
 
 //==============================================================================

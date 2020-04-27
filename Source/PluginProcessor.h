@@ -58,18 +58,24 @@ public:
 private:
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(ChorusAudioProcessor)
+
         AudioParameterFloat* mixA;
         AudioParameterFloat* mixB;
-        AudioParameterFloat* intensityA;
-        AudioParameterFloat* intensityB;
+        AudioParameterFloat* widthA;
+        AudioParameterFloat* widthB;
         AudioParameterFloat* speedA;
         AudioParameterFloat* speedB;
+        AudioParameterFloat* timeA;
+        AudioParameterFloat* timeB;
 
         AudioBuffer<float> delayBufferA;
         AudioBuffer<float> delayBufferB;
-        int delayBufferLength = 1;
+        int delayBufferALength = 1;
+        int delayBufferBLength = 1;
         int readIndexA = 0;
         int readIndexB = 0;
         int writeIndexA = 0;
         int writeIndexB = 0;
+
+      
 };
